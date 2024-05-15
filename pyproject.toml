@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "neo4j-transfer-streamlit"
+version = "0.1.0"
+description = ""
+authors = ["jalakoo <jalakoo@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+streamlit = "^1.34.0"
+neo4j-transfer = {git = "https://github.com/jalakoo/neo4j-transfer.git", rev = "main"}
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
