@@ -445,7 +445,7 @@ pydantic = "^2.7.1"
 type = "git"
 url = "https://github.com/jalakoo/neo4j-transfer.git"
 reference = "main"
-resolved_reference = "b86e0ff2582a70a4f6d4b9ab392abc275cf0f8a5"
+resolved_reference = "03676443af25b3d4513f476ed25a27ef98f6b754"
 
 [[package]]
 name = "neo4j-uploader"
