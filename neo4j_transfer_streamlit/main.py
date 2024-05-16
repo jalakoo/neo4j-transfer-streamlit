@@ -79,14 +79,15 @@ with c1:
         "Password", d_s_password, key="s_password", type="password"
     )
     s_db = st.text_input("Database", d_s_db, key="s_db")
-    if s_uri and s_password:
+    if not bool(s_uri) or not bool(s_password):
+        st.info(f"Enter source database info")
+        st.stop()
+    else:
         s_creds = Neo4jCredentials(
             uri=s_uri, username=s_user, password=s_password, database=s_db
         )
         s_nodes = nodes(s_creds)
         s_relationships = relationships(s_creds)
-    else:
-        st.info(f"Enter source database info")
 with c2:
     st.write("Transfer Options")
     # Display source data options
