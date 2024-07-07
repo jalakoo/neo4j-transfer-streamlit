@@ -13,6 +13,10 @@ from neo4j_transfer import (
 )
 import os
 
+
+# Configure Transfer package logging
+
+
 # Setup
 st.set_page_config(
     page_title="Neo4j Transfer Tool", layout="wide", initial_sidebar_state="collapsed"
@@ -61,7 +65,7 @@ logger.setLevel(logging.DEBUG)
 
 
 @st.cache_data(ttl="5m")
-def nodes(_creds) -> list[str]:
+def get_nodes(_creds) -> list[str]:
     try:
         s_nodes = get_node_labels(_creds)
         return s_nodes
@@ -72,7 +76,7 @@ def nodes(_creds) -> list[str]:
 
 
 @st.cache_data(ttl="5m")
-def relationships(_creds) -> list[str]:
+def get_relationships(_creds) -> list[str]:
     try:
         rels = get_relationship_types(_creds)
         return rels
@@ -94,9 +98,12 @@ c1, c2, c3 = st.columns(3)
 with c1:
     st.write("Source Neo4j Database")
 
-    # with st.form("Source Neo4j Database"):
-
-    s_uri = st.text_input("URI", st.session_state[SOURCE_URI_KEY], key="s_uri")
+    s_uri = st.text_input(
+        "URI",
+        st.session_state[SOURCE_URI_KEY],
+        key="s_uri",
+        help="If targeting a local db instance. Use Ngrok or other tunneling service. Once up and running, add 'bolt://<ngrok_tcp_address>' in this field.",
+    )
     s_user = st.text_input("Username", st.session_state[SOURCE_USER_KEY], key="s_user")
     s_password = st.text_input(
         "Password",
@@ -108,16 +115,14 @@ with c1:
     if not bool(s_uri) or not bool(s_password):
         st.info(f"Enter source database info")
 
-    # submitted = st.form_submit_button("Connect")
-    # if submitted:
     if st.button("Connect"):
         try:
             s_creds = Neo4jCredentials(
                 uri=s_uri, username=s_user, password=s_password, database=s_db
             )
             validate_credentials(s_creds)
-            node_labels = nodes(s_creds)
-            rel_types = relationships(s_creds)
+            node_labels = get_nodes(s_creds)
+            rel_types = get_relationships(s_creds)
             print(f"node_labels returned: {node_labels}")
             print(f"rel_types returned: {rel_types}")
             st.session_state[NODE_LABELS_KEY] = node_labels
@@ -138,18 +143,48 @@ with c2:
     if node_options is None or relationship_options is None:
         st.stop()
 
-    # if node_labels is None or rel_types is None:
-    #     st.stop()
-
     st.write("Transfer Options")
 
-    nodes = st.multiselect("Nodes", options=st.session_state[NODE_LABELS_KEY])
-    relationships = st.multiselect(
-        "Relationships", options=st.session_state[RELATIONSHIP_TYPES_KEY]
+    get_nodes = st.multiselect(
+        "Nodes",
+        options=st.session_state[NODE_LABELS_KEY],
+        default=st.session_state[NODE_LABELS_KEY],
+    )
+    get_relationships = st.multiselect(
+        "Relationships",
+        options=st.session_state[RELATIONSHIP_TYPES_KEY],
+        default=st.session_state[RELATIONSHIP_TYPES_KEY],
     )
 
-    if len(nodes) == 0 and len(relationships) == 0:
+    if len(get_nodes) == 0 and len(get_relationships) == 0:
         st.info(f"Select nodes and/or relationships to transfer")
+
+    enable_advanced = st.toggle("Enable Advanced Options")
+    if enable_advanced:
+
+        def default_config(labels: list[str]) -> str:
+            return f"""
+{{
+    {", ".join(f'"{label}":{{"source":"element_id", "target":"_original_element_id"}}' for label in labels)}
+}}
+            """
+
+        custom_nodes_config = st.text_area(
+            "Custom Nodes Config",
+            default_config(get_nodes),
+            key="custom_nodes_config",
+        )
+        custom_relationships_config = st.text_area(
+            "Custom Relationships Config",
+            default_config(get_relationships),
+            key="custom_relationships_config",
+        )
+        get_nodes = json.loads(custom_nodes_config)
+        get_relationships = json.loads(custom_relationships_config)
+        print(f"nodes config: {get_nodes}")
+        print(f"relationships config: {get_relationships}")
+
+
 with c3:
     st.write("Target Neo4j Database")
 
@@ -159,7 +194,12 @@ with c3:
     t_s_password = os.environ.get("TARGET_NEO4J_PASSWORD", None)
     t_s_db = os.environ.get("TARGET_NEO4J_DATABASE", "neo4j")
 
-    t_uri = st.text_input("URI", t_s_uri, key="t_uri")
+    t_uri = st.text_input(
+        "URI",
+        t_s_uri,
+        key="t_uri",
+        help="If targeting a local db instance. Use Ngrok or other tunneling service. Once up and running, add 'bolt://<ngrok_tcp_address>' in this field.",
+    )
     t_user = st.text_input("Username", t_s_user, key="t_user")
     t_password = st.text_input(
         "Password", t_s_password, key="t_password", type="password"
@@ -174,17 +214,24 @@ with c3:
         add_default_data = st.checkbox(
             "Add default properties",
             value=True,
-            help="Adds transfer detail properties to transferred nodes and relationships. Following key-values will be added: _transfer_element_id and _transfer_timestamp",
+            help="Adds transfer detail properties to transferred nodes and relationships. Following key-values will be added: _original_element_id and _transfer_timestamp",
+        )
+
+        overwrite_target = st.checkbox(
+            "Purge target database prior to transfer",
+            value=False,
+            help="Purge all current data in the target database prior to transferring data from the source database. Deletes ALL data on target database!",
         )
 
         spec = TransferSpec(
-            node_labels=nodes,
-            relationship_types=relationships,
+            node_labels=get_nodes,
+            relationship_types=get_relationships,
             should_append_data=add_default_data,
+            overwrite_target=overwrite_target,
         )
 
         if st.button("Start Transfer"):
-            if len(nodes) == 0:
+            if len(get_nodes) == 0:
                 st.warning("Select at least one node label to start a transfer")
             else:
                 try:
@@ -200,9 +247,13 @@ with c3:
                     st.session_state[TRANSFER_LOG_KEY].insert(
                         0, {"transfer_spec": spec.dict(), "result": result.dict()}
                     )
-                    st.success(f"Transfer complete - {result}")
+                    msg = f"Transfer complete - {result}"
+                    logging.info(msg)
+                    st.success(msg)
                 except Exception as e:
-                    st.error(f"Problem transferring: {e}")
+                    msg = f"Problem transferring: {e}"
+                    logging.error(msg)
+                    st.error(msg)
 
     else:
         st.info(f"Enter target database info")
@@ -216,7 +267,7 @@ with st.sidebar:
         ts = log["transfer_spec"]["timestamp"]
         with st.expander(f"{ts}"):
             st.code(f"{log}")
-            if st.button("Undo"):
+            if st.button("Undo", key=ts):
                 u_spec = TransferSpec(**log["transfer_spec"])
                 result = undo(t_creds, u_spec)
                 st.info(result.__dict__)
