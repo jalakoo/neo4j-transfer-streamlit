@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "neo4j-transfer-streamlit"
-version = "0.1.0"
+version = "0.1.2"
 description = ""
 authors = ["jalakoo <jalakoo@gmail.com>"]
 readme = "README.md"

@@ -504,31 +504,29 @@ files = []
 develop = false
 
 [package.dependencies]
-neo4j-uploader = {path = "/Users/jasonkoo/neo4j/repos/neo4j-uploader", develop = true}
+neo4j-uploader = "^0.6.0"
 pydantic = "^2.7.1"
 
 [package.source]
 type = "git"
 url = "https://github.com/jalakoo/neo4j-transfer.git"
 reference = "main"
-resolved_reference = "a15630f605fbf715cce0305753474fac89e78bf9"
+resolved_reference = "aafb6b81df0b28b342e9e985879e94857c56b7a5"
 
 [[package]]
 name = "neo4j-uploader"
-version = "0.5.4"
+version = "0.6.0"
 description = ""
 optional = false
-python-versions = "^3.9"
-files = []
-develop = true
+python-versions = "<4.0,>=3.9"
+files = [
+    {file = "neo4j_uploader-0.6.0-py3-none-any.whl", hash = "sha256:239dfd7afd0bfd96778d6a96d9b900669febb99699c46802056cdb6b6df6a80b"},
+    {file = "neo4j_uploader-0.6.0.tar.gz", hash = "sha256:d0c7228add6f943a3aff98a2d1925cc29d354d4f3bfbe9a9fce5ecea33db3a3e"},
+]
 
 [package.dependencies]
-neo4j-rust-ext = "^5.20.0.0"
-pydantic = "^2.5.2"
-
-[package.source]
-type = "directory"
-url = "../neo4j-uploader"
+neo4j-rust-ext = ">=5.20.0.0,<6.0.0.0"
+pydantic = ">=2.5.2,<3.0.0"
 
 [[package]]
 name = "numpy"
