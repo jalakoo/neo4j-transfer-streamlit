@@ -6,6 +6,7 @@ from neo4j_transfer import (
     Neo4jCredentials,
     TransferSpec,
     transfer,
+    transfer_generator,
     get_node_labels,
     get_relationship_types,
     validate_credentials,
@@ -234,6 +235,8 @@ with c3:
             if len(get_nodes) == 0:
                 st.warning("Select at least one node label to start a transfer")
             else:
+                progress_indicator = st.progress(0.0)
+
                 try:
                     source_creds = Neo4jCredentials(
                         uri=st.session_state[SOURCE_URI_KEY],
@@ -241,7 +244,14 @@ with c3:
                         password=st.session_state[SOURCE_PASSWORD_KEY],
                         database=st.session_state[SOURCE_DATABASE_KEY],
                     )
-                    result = transfer(source_creds, t_creds, spec)
+
+                    for result in transfer_generator(source_creds, t_creds, spec):
+                        if result is None:
+                            print(f"Unexpected result: {result}")
+                            continue
+                        completion = result.float_completed()
+                        progress_text = f"Upload {round(completion * 100)}% complete"
+                        progress_indicator.progress(completion, progress_text)
 
                     # Store list of transfer ids so an undo option is possible
                     st.session_state[TRANSFER_LOG_KEY].insert(
