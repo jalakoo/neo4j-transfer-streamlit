@@ -7,17 +7,25 @@ from neo4j_transfer import (
     TransferSpec,
     transfer,
     transfer_generator,
+    get_node_and_relationship_counts,
     get_node_labels,
     get_relationship_types,
     validate_credentials,
     undo,
+    reset_target_db
 )
 import os
+from public_creds import public_creds
+from streamlit.runtime.scriptrunner import RerunException
+from dotenv import load_dotenv
 
+load_dotenv()
+
+# get neo4j transfer logger
+logger = logging.getLogger("neo4j_transfer")
+logger.setLevel(logging.WARNING)
 
 # Configure Transfer package logging
-
-
 # Setup
 st.set_page_config(
     page_title="Neo4j Transfer Tool", layout="wide", initial_sidebar_state="collapsed"
@@ -31,10 +39,15 @@ t_credentials = False
 TRANSFER_LOG_KEY = "transfer_log"
 NODE_LABELS_KEY = "node_labels"
 RELATIONSHIP_TYPES_KEY = "relationship_types"
-SOURCE_URI_KEY = "source_uri"
-SOURCE_USER_KEY = "source_user"
-SOURCE_PASSWORD_KEY = "source_password"
-SOURCE_DATABASE_KEY = "source_database"
+SOURCE_URI_KEY = "NEO4J_URI"
+SOURCE_USER_KEY = "NEO4J_USERNAME"
+SOURCE_PASSWORD_KEY = "NEO4J_PASSWORD"
+SOURCE_DATABASE_KEY = "NEO4J_DATABASE"
+TARGET_URI_KEY = "TARGET_NEO4J_URI"
+TARGET_USER_KEY = "TARGET_NEO4J_USERNAME"
+TARGET_PASSWORD_KEY = "TARGET_NEO4J_PASSWORD"
+TARGET_DATABASE_KEY = "TARGET_NEO4J_DATABASE"
+COUNTS_KEY = "counts"
 
 if TRANSFER_LOG_KEY not in st.session_state:
     # Store a list of dictionaries containing transfer data
@@ -47,19 +60,24 @@ if RELATIONSHIP_TYPES_KEY not in st.session_state:
 node_labels = None
 rel_types = None
 
-# Optionally load source database info from .env
+
+# Load source database info from .env, if present
 if SOURCE_URI_KEY not in st.session_state:
-    d_s_uri = os.environ.get("NEO4J_URI", None)
+    d_s_uri = os.environ.get(SOURCE_URI_KEY, None)
     st.session_state[SOURCE_URI_KEY] = d_s_uri
 if SOURCE_USER_KEY not in st.session_state:
-    d_s_user = os.environ.get("NEO4J_USERNAME", "neo4j")
+    d_s_user = os.environ.get(SOURCE_USER_KEY, "neo4j")
     st.session_state[SOURCE_USER_KEY] = d_s_user
 if SOURCE_PASSWORD_KEY not in st.session_state:
-    d_s_password = os.environ.get("NEO4J_PASSWORD", None)
+    d_s_password = os.environ.get(SOURCE_PASSWORD_KEY, None)
     st.session_state[SOURCE_PASSWORD_KEY] = d_s_password
 if SOURCE_DATABASE_KEY not in st.session_state:
-    d_s_db = os.environ.get("NEO4J_DATABASE", "neo4j")
+    d_s_db = os.environ.get(SOURCE_DATABASE_KEY, "neo4j")
     st.session_state[SOURCE_DATABASE_KEY] = d_s_db
+
+# Initialize counts in session state
+if COUNTS_KEY not in st.session_state:
+    st.session_state.counts = {'nodes': 0, 'relationships': 0}
 
 logger = logging.getLogger("neo4j_transfer")
 logger.setLevel(logging.DEBUG)
@@ -97,7 +115,14 @@ def credentials_valid(creds) -> bool:
 # Start UI
 c1, c2, c3 = st.columns(3)
 with c1:
-    st.write("Source Neo4j Database")
+    st.header("Source Neo4j Database")
+
+    s_db = st.selectbox("Type", options=public_creds.keys(), key="source_db", help="Select Custom for your own source database or one of the public database options. See https://neo4j.com/docs/getting-started/appendix/example-data/ for more information on public datasets.")
+    if s_db:
+        st.session_state[SOURCE_URI_KEY] = public_creds[s_db][SOURCE_URI_KEY]
+        st.session_state[SOURCE_USER_KEY] = public_creds[s_db][SOURCE_USER_KEY]
+        st.session_state[SOURCE_PASSWORD_KEY] = public_creds[s_db][SOURCE_PASSWORD_KEY]
+        st.session_state[SOURCE_DATABASE_KEY] = public_creds[s_db][SOURCE_DATABASE_KEY]
 
     s_uri = st.text_input(
         "URI",
@@ -116,25 +141,57 @@ with c1:
     if not bool(s_uri) or not bool(s_password):
         st.info(f"Enter source database info")
 
+    # Create credentials object
+    s_creds = Neo4jCredentials(
+        uri=s_uri, username=s_user, password=s_password, database=s_db
+    )
+
     if st.button("Connect"):
+        # Create a status container for connection messages
+        status_container = st.empty()
+        
+        # Show initial connection status
+        status_container.info("🔄 Attempting to connect to the source database...")
+        
         try:
-            s_creds = Neo4jCredentials(
-                uri=s_uri, username=s_user, password=s_password, database=s_db
-            )
+            
+            # Validate connection
+            status_container.info("🔍 Validating database connection...")
             validate_credentials(s_creds)
+            
+            # Get node labels
+            status_container.info("📊 Retrieving node labels...")
             node_labels = get_nodes(s_creds)
+            
+            # Get relationship types
+            status_container.info("🔗 Retrieving relationship types...")
             rel_types = get_relationships(s_creds)
+            
+            # Log for debugging
             print(f"node_labels returned: {node_labels}")
             print(f"rel_types returned: {rel_types}")
+            
+            # Update session state
             st.session_state[NODE_LABELS_KEY] = node_labels
             st.session_state[RELATIONSHIP_TYPES_KEY] = rel_types
             st.session_state[SOURCE_URI_KEY] = s_uri
             st.session_state[SOURCE_USER_KEY] = s_user
             st.session_state[SOURCE_PASSWORD_KEY] = s_password
             st.session_state[SOURCE_DATABASE_KEY] = s_db
-            st.success("Connection successful")
+            
+            # Show success message
+            status_container.success("✅ Successfully connected to the source database!")
+            
+            # Small delay to show the success message before refreshing
+            import time
+            time.sleep(1)
+            st.rerun()
+            
         except Exception as e:
-            st.error(f"Problem connecting with database: {e}")
+            # Show detailed error message
+            error_msg = f"❌ Failed to connect to the database: {str(e)}"
+            logging.error(error_msg)
+            status_container.error(error_msg)
             st.stop()
 
 with c2:
@@ -144,50 +201,45 @@ with c2:
     if node_options is None or relationship_options is None:
         st.stop()
 
-    st.write("Transfer Options")
+    st.header("Transfer Options")
+    # st.write("Transfer Options")
+    st.write("Deselect Nodes or Relationship types to remove from transfer")
 
+    # Update the multiselect widgets to use on_change
     get_nodes = st.multiselect(
         "Nodes",
         options=st.session_state[NODE_LABELS_KEY],
         default=st.session_state[NODE_LABELS_KEY],
+        key='selected_nodes_widget'
     )
+
     get_relationships = st.multiselect(
         "Relationships",
         options=st.session_state[RELATIONSHIP_TYPES_KEY],
         default=st.session_state[RELATIONSHIP_TYPES_KEY],
+        key='selected_rels_widget'
     )
 
+    st.info("Refreshing counts...")
+    total_nodes, total_rels = get_node_and_relationship_counts(s_creds, get_nodes, get_relationships)
+
+    # Display counts
+    col1, col2 = st.columns(2)
+    col1.metric(
+        "Nodes to Transfer", 
+        f"{total_nodes:,}"
+    )
+    col2.metric(
+        "Relationships to Transfer", 
+        f"{total_rels:,}"
+    )
+
+    # Show warning if nothing is selected
     if len(get_nodes) == 0 and len(get_relationships) == 0:
-        st.info(f"Select nodes and/or relationships to transfer")
-
-    enable_advanced = st.toggle("Enable Advanced Options")
-    if enable_advanced:
-
-        def default_config(labels: list[str]) -> str:
-            return f"""
-{{
-    {", ".join(f'"{label}":{{"source":"element_id", "target":"_original_element_id"}}' for label in labels)}
-}}
-            """
-
-        custom_nodes_config = st.text_area(
-            "Custom Nodes Config",
-            default_config(get_nodes),
-            key="custom_nodes_config",
-        )
-        custom_relationships_config = st.text_area(
-            "Custom Relationships Config",
-            default_config(get_relationships),
-            key="custom_relationships_config",
-        )
-        get_nodes = json.loads(custom_nodes_config)
-        get_relationships = json.loads(custom_relationships_config)
-        print(f"nodes config: {get_nodes}")
-        print(f"relationships config: {get_relationships}")
-
+        st.warning("Please select at least one node or relationship")
 
 with c3:
-    st.write("Target Neo4j Database")
+    st.header("Target Neo4j Database")
 
     # Optionally load target database credentials from .env
     t_s_uri = os.environ.get("TARGET_NEO4J_URI", None)
@@ -219,7 +271,7 @@ with c3:
         )
 
         overwrite_target = st.checkbox(
-            "Purge target database prior to transfer",
+            "⚠️ Purge target database prior to transfer (can not be undone)",
             value=False,
             help="Purge all current data in the target database prior to transferring data from the source database. Deletes ALL data on target database!",
         )
@@ -227,15 +279,16 @@ with c3:
         spec = TransferSpec(
             node_labels=get_nodes,
             relationship_types=get_relationships,
-            should_append_data=add_default_data,
-            overwrite_target=overwrite_target,
+            should_append_data=add_default_data
         )
 
         if st.button("Start Transfer"):
             if len(get_nodes) == 0:
                 st.warning("Select at least one node label to start a transfer")
             else:
-                progress_indicator = st.progress(0.0)
+                status_container = st.empty()
+                purge_status_container = st.empty()
+                # progress_indicator = st.progress(0.0)
 
                 try:
                     source_creds = Neo4jCredentials(
@@ -245,25 +298,68 @@ with c3:
                         database=st.session_state[SOURCE_DATABASE_KEY],
                     )
 
-                    for result in transfer_generator(source_creds, t_creds, spec):
+                    # Show initial status
+                    status_container.info("Starting transfer process...")
+                    
+                    if overwrite_target:
+                        try:
+                            purge_result = reset_target_db(t_creds)
+                            purge_status_container.success("Target database purged successfully!")
+                        except Exception as e:
+                            purge_status_container.error(f"Failed to purge target database: {str(e)}")
+                            st.stop()
+
+                    
+                    progress_container = st.empty()
+                    progress_indicator = progress_container.progress(0.0)
+
+                    # Add a stop button
+                    stop_button = st.button("⏹️ Stop Transfer", key="stop_transfer")
+
+                    # Start the transfer
+                    transfer_gen = transfer_generator(source_creds, t_creds, spec)  # Changed target_creds to t_creds
+                    controller = next(transfer_gen)  # Get the controller
+
+                    for result in transfer_gen:
+                        if stop_button:
+                            controller.request._stop()
+                            status_container.warning("Transfer stopped by user")
+                            break
+                            
                         if result is None:
-                            print(f"Unexpected result: {result}")
-                            continue
+                            raise ValueError("Missing result from transfer generator")
+                        
                         completion = result.float_completed()
                         progress_text = f"Upload {round(completion * 100)}% complete"
-                        progress_indicator.progress(completion, progress_text)
+                        
+                        # Update the progress indicator
+                        progress_indicator.progress(
+                            completion,
+                            text=progress_text
+                        )
+                        
+                        # Force Streamlit to update the UI
+                        progress_container.empty()  # Clear the previous progress
+                        progress_indicator = progress_container.progress(completion, text=progress_text)
+                        
+                        # Rerun to update the UI and check the stop button
+                        st.rerun()
 
                     # Store list of transfer ids so an undo option is possible
                     st.session_state[TRANSFER_LOG_KEY].insert(
                         0, {"transfer_spec": spec.dict(), "result": result.dict()}
                     )
-                    msg = f"Transfer complete - {result}"
+                    msg = f"✅ Transfer complete - {result}"
                     logging.info(msg)
                     st.success(msg)
                 except Exception as e:
-                    msg = f"Problem transferring: {e}"
+                    msg = f"❌ Problem during transfer: {str(e)}"
                     logging.error(msg)
                     st.error(msg)
+                    if 'progress_indicator' in locals():
+                        progress_indicator.empty()
+                    if 'status_container' in locals():
+                        status_container.error("Transfer failed. See error details above.")
 
     else:
         st.info(f"Enter target database info")

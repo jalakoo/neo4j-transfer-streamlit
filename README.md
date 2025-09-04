@@ -51,3 +51,7 @@ Local Desktop database instances will need to be shutdown, then a Clone or Dump 
 ### Undo
 
 The expandable sidebar contains a transfer log of all the transfer executed during a session. By selecting the undo button on any of the listed transfers will wipe the transfered data from the target database. Note it may display an error if data from that transfer has already been removed (by a previous undo or if the `Purge Target Database` option above was used)
+
+
+## License
+MIT
