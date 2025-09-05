@@ -369,27 +369,67 @@ def run_transfer(t_creds: Neo4jCredentials, spec: TransferSpec, purge_target: bo
                 reset_target_db(t_creds)
             st.success("Target database purged successfully!")
 
-        # Initialize progress tracking
-        progress_bar = progress_container.progress(0.0)
+        # Initialize progress tracking via placeholder for reliable updates
+        progress_placeholder = progress_container.empty()
+        progress_placeholder.progress(0.0)
         
         # Execute transfer
         transfer_gen = transfer_generator(source_creds, t_creds, spec)
         result = None
+
+        # Some generators yield a controller first; consume it if present
+        try:
+            first_yield = next(transfer_gen)
+            # If the first yield has a controller-like interface, ignore for progress
+            # and continue iterating for progress updates
+        except StopIteration:
+            first_yield = None
         
         for result in transfer_gen:
-            if result:
-                completion = getattr(result, 'float_completed', lambda: 0.0)()
-                progress_text = f"Transfer {int(completion * 100)}% complete"
-                progress_bar.progress(completion, text=progress_text)
+            # Log yielded object shape
+            logger.info(
+                "Transfer yield: type=%s, has_float_completed=%s, has_model_dump=%s, has_dict=%s",
+                type(result).__name__,
+                hasattr(result, "float_completed"),
+                hasattr(result, "model_dump"),
+                hasattr(result, "dict"),
+            )
+
+            # Update progress if possible
+            try:
+                completion = result.float_completed()
+                logger.debug("Transfer progress: completion=%.3f (%d%%)", completion, int(completion * 100))
+            except Exception as e:
+                # If the yielded item doesn't have progress, skip update
+                logger.warning(
+                    "Skipping progress update for yield type=%s due to error: %s",
+                    type(result).__name__, str(e)
+                )
+                continue
+            completion = max(0.0, min(1.0, float(completion)))
+            progress_text = f"Transfer {int(completion * 100)}% complete"
+            logger.info("Transfer progress: completion=%.3f (%d%%)", completion, int(completion * 100))
+            try:
+                progress_placeholder.progress(completion, text=progress_text)
+            except TypeError:
+                # Fallback for Streamlit versions that don't support 'text' kwarg
+                progress_placeholder.progress(completion)
+            # Yield a tiny pause to allow the UI to render
+            time.sleep(0.01)
 
         # Log successful transfer
         if result:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             st.session_state[SessionKeys.TRANSFER_LOG].insert(0, {
                 "timestamp": timestamp,
-                "transfer_spec": spec.dict() if hasattr(spec, 'dict') else str(spec),
-                "result": result.dict() if hasattr(result, 'dict') else str(result)
+                "transfer_spec": spec.model_dump() if hasattr(spec, 'dict') else str(spec),
+                "result": result.model_dump() if hasattr(result, 'dict') else str(result)
             })
+            # Ensure the bar shows complete state
+            try:
+                progress_placeholder.progress(1.0, text="Transfer 100% complete")
+            except TypeError:
+                progress_placeholder.progress(1.0)
             
             st.success(f"✅ Transfer completed successfully! {result}")
             
