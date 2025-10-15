@@ -4,7 +4,7 @@ A powerful, user-friendly Streamlit application for transferring nodes and relat
 
 ![Neo4j Transfer Tool UI](assets/screenshot.png)
 
-*Example transfer from sandbox.neo4j.com's Recommendation dataset to a local database instance*
+*Example transfer from neo4j.com's Northwinds dataset to a local database instance*
 
 ## 🚀 Features
 
@@ -19,7 +19,7 @@ A powerful, user-friendly Streamlit application for transferring nodes and relat
 
 ## 🏗️ Architecture
 
-This application leverages the [`neo4j-transfer`](https://pypi.org/project/neo4j-uploader/) package, which provides:
+This application leverages the [`neo4j-transfer`](https://pypi.org/project/neo4j-transfer/) package, which provides:
 - **Performance**: Faster than individual MATCH/MERGE operations
 - **Efficiency**: No dependency on APOC library
 - **Scalability**: Optimized for large dataset transfers
