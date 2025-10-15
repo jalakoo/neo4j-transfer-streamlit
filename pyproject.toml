@@ -1,14 +1,15 @@
 [tool.poetry]
 name = "neo4j-transfer-streamlit"
-version = "0.1.2"
+version = "0.1.3"
 description = ""
 authors = ["jalakoo <jalakoo@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-streamlit = "^1.34.0"
-neo4j-transfer = {git = "https://github.com/jalakoo/neo4j-transfer.git", rev = "main"}
+streamlit = "^1.46.1"
+python-dotenv = "^1.1.1"
+neo4j-transfer = "^0.2.0"
 
 
 [build-system]

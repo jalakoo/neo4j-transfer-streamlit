@@ -1,0 +1,66 @@
+import os
+
+public_creds = {
+    "custom":{
+        "NEO4J_URI": os.environ.get("NEO4J_URI", ""),
+        "NEO4J_USERNAME": os.environ.get("NEO4J_USERNAME", "neo4j"),
+        "NEO4J_PASSWORD": os.environ.get("NEO4J_PASSWORD", ""),
+        "NEO4J_DATABASE": os.environ.get("NEO4J_DATABASE", "neo4j")
+    },
+    "northwinds": {
+        "NEO4J_URI":"neo4j+s://demo.neo4jlabs.com",
+        "NEO4J_USERNAME":"northwind",
+        "NEO4J_PASSWORD":"northwind",
+        "NEO4J_DATABASE":"northwind"
+    },
+    "movies":{
+        "NEO4J_URI":"neo4j+s://demo.neo4jlabs.com",
+        "NEO4J_USERNAME":"movies",
+        "NEO4J_PASSWORD":"movies",
+        "NEO4J_DATABASE":"movies"
+    },
+    "movie-recommendations":{
+        "NEO4J_URI":"neo4j+s://demo.neo4jlabs.com",
+        "NEO4J_USERNAME":"recommendations",
+        "NEO4J_PASSWORD":"recommendations",
+        "NEO4J_DATABASE":"recommendations",
+        "NOTES":"Memory issue - remove?"
+    },
+    "stackoverflow":{
+        "NEO4J_URI":"neo4j+s://demo.neo4jlabs.com",
+        "NEO4J_USERNAME":"stackoverflow",
+        "NEO4J_PASSWORD":"stackoverflow",
+        "NEO4J_DATABASE":"stackoverflow",
+        "NOTES":"50 million nodes, this is a large dataset"
+    },
+    "fincen":{
+        "NEO4J_URI":"neo4j+s://demo.neo4jlabs.com",
+        "NEO4J_USERNAME":"fincen",
+        "NEO4J_PASSWORD":"fincen",
+        "NEO4J_DATABASE":"fincen"
+    },
+    "gameofthrones":{
+        "NEO4J_URI":"neo4j+s://demo.neo4jlabs.com",
+        "NEO4J_USERNAME":"gameofthrones",
+        "NEO4J_PASSWORD":"gameofthrones",
+        "NEO4J_DATABASE":"gameofthrones"
+    },
+    "twitter":{
+        "NEO4J_URI":"neo4j+s://demo.neo4jlabs.com",
+        "NEO4J_USERNAME":"twitter",
+        "NEO4J_PASSWORD":"twitter",
+        "NEO4J_DATABASE":"twitter"
+    },
+    "neoflix":{
+        "NEO4J_URI":"neo4j+s://demo.neo4jlabs.com",
+        "NEO4J_USERNAME":"neoflix",
+        "NEO4J_PASSWORD":"neoflix",
+        "NEO4J_DATABASE":"neoflix"
+    },
+    "wordnet":{
+        "NEO4J_URI":"neo4j+s://demo.neo4jlabs.com",
+        "NEO4J_USERNAME":"wordnet",
+        "NEO4J_PASSWORD":"wordnet",
+        "NEO4J_DATABASE":"wordnet"
+    }
+}
