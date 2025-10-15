@@ -7,9 +7,9 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-neo4j-transfer = {path = "/Users/jasonkoo/neo4j/repos/neo4j-transfer", develop = true}
 streamlit = "^1.46.1"
 python-dotenv = "^1.1.1"
+neo4j-transfer = "^0.2.0"
 
 
 [build-system]

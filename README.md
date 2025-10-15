@@ -1,57 +1,187 @@
 # Neo4j Transfer Streamlit
 
-Simple app for transferring all or specific Nodes and Relationships from one Neo4j database to another.
+A powerful, user-friendly Streamlit application for transferring nodes and relationships between Neo4j databases. This tool provides an intuitive web interface for database migration, data synchronization, and selective data transfer operations.
 
-Leverages the [`neo4j-uploader`](https://pypi.org/project/neo4j-uploader/) package which batch transfers using lists and the Cypher UNWIND function. This package is faster than using only MATCH/MERGE Cypher statements, doesn't require the [APOC library](https://neo4j.com/labs/apoc/4.0/overview/apoc.load/), but is not as fast as loading a completely new database like as is the Neo4j Admin Tool's [Import](https://neo4j.com/docs/operations-manual/current/tools/neo4j-admin/neo4j-admin-import/) feature.
+![Neo4j Transfer Tool UI](assets/screenshot.png)
 
-![alt text](https://res.cloudinary.com/dqjkf4zsf/image/upload/c_scale,w_800/v1720313022/neo4j-transfer-streamlit_ieaujq.png "Neo4j Transfer Tool UI - Completed Transfer")
+*Example transfer from sandbox.neo4j.com's Recommendation dataset to a local database instance*
 
-_Example transfer from sandbox.neo4j.com's Recommendation dataset to a local database instance_
+## 🚀 Features
 
-A Streamlit Cloud version of this app exists at: https://neo4j-transfer.streamlit.app
+- **Batch Transfer**: Efficiently transfers large datasets using optimized Cypher UNWIND operations
+- **Selective Transfer**: Choose specific node labels and relationship types to transfer
+- **Real-time Progress**: Visual feedback during transfer operations
+- **Transfer History**: Track and manage all transfer operations within a session
+- **Undo Functionality**: Safely rollback transfers with one-click undo
+- **Database Purge**: Option to clear target database before transfer
+- **Multiple Database Support**: Works with Neo4j Aura, Neo4j Desktop, and self-hosted instances
+- **Advanced Options**: Customizable transfer properties and metadata tracking
 
-However, the cloud version can not export from or to a local Neo4j database (ie one running from [Neo4j Desktop](https://neo4j.com/docs/desktop-manual/current/)). Instead see the ##Usage section below for running locally.
+## 🏗️ Architecture
 
-**NOTE:** The `neo4j-uploader` package doesn't yet contain a progress callback, so Streamlit's own running animation is the only indicator that a transfer is in progress.
+This application leverages the [`neo4j-transfer`](https://pypi.org/project/neo4j-uploader/) package, which provides:
+- **Performance**: Faster than individual MATCH/MERGE operations
+- **Efficiency**: No dependency on APOC library
+- **Scalability**: Optimized for large dataset transfers
+- **Reliability**: Built-in error handling and validation
 
-## Requirements
+## 📋 Prerequisites
 
-[Poetry](https://python-poetry.org)
+- **Python 3.11+**
+- **Poetry** - Python dependency management
+- **Neo4j Database** - Source and/or target Neo4j instance(s)
 
-## Usage
+## 🛠️ Installation
 
+### 1. Clone the Repository
+```bash
+git clone <repository-url>
+cd neo4j-transfer-streamlit
 ```
+
+### 2. Install Dependencies
+```bash
 poetry install
+```
+
+### 3. Environment Configuration
+Create a `.env` file in the project root with your Neo4j credentials:
+
+```env
+# Source Database (optional - can be configured in UI)
+NEO4J_URI=neo4j://localhost:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=your_password
+NEO4J_DATABASE=neo4j
+
+# Target Database (optional - can be configured in UI)
+TARGET_NEO4J_URI=neo4j://localhost:7687
+TARGET_NEO4J_USERNAME=neo4j
+TARGET_NEO4J_PASSWORD=your_password
+TARGET_NEO4J_DATABASE=neo4j
+```
+
+## 🚀 Usage
+
+### Local Development
+```bash
 poetry run streamlit run neo4j_transfer_streamlit/main.py
 ```
 
-## Options
+### Cloud Deployment
+A live version is available at: [https://neo4j-transfer.streamlit.app](https://neo4j-transfer.streamlit.app)
+
+> **Note**: The cloud version cannot connect to local Neo4j instances (e.g., Neo4j Desktop). Use local installation for local database transfers.
+
+## ⚙️ Configuration
+
+### Database Connections
+
+The application supports multiple connection methods:
+
+1. **Environment Variables**: Set credentials in `.env` file
+2. **Public Credentials**: Use predefined demo databases
+3. **Manual Input**: Enter credentials directly in the UI
+
+### Pre-configured Demo Databases
+
+- **Northwind**: Sample business database
+- **Movies**: Movie recommendation dataset
+- **Recommendations**: Product recommendation system
+
+## 🔧 Transfer Options
 
 ### Default Properties
 
-The Transfer package will automatically add the following properties to all transferred Nodes and Relationships:
+All transferred nodes and relationships automatically receive:
 
-- \_original_element_id
-- \_transfer_timestamp
+- **`_original_element_id`**: Original element ID from source database
+- **`_transfer_timestamp`**: ISO-8601 timestamp of transfer initiation
 
-The `_original_element_id` value will be the [elementId](https://neo4j.com/docs/cypher-manual/current/functions/scalar/#functions-elementid) of the original Node or Relationship that was transferred
+### Advanced Options
 
-The `_transfer_timestamp` value will be the ISO-8601 datetime string of when the transfer request began.
+- **Custom Properties**: Modify default property names
+- **Selective Transfer**: Choose specific node labels and relationship types
+- **Batch Size**: Configure transfer batch size for optimal performance
 
-Enabling Advanced Options allows for the direct modification of these source and target properties should an alternate source or target key be desired.
+### Database Purge
 
-### Purge Target Database
+⚠️ **Warning**: The purge option permanently deletes all data in the target database. Ensure you have a recent backup before proceeding.
 
-There is a checkbox to purget the target database before starting a transfer. Warning, there is no way to undo this wipe once executed, so be sure to have a recent backup .dump file of your data before proceeding.
+**Backup Recommendations:**
+- **Neo4j Aura**: Automatic daily backups (manual backup available)
+- **Neo4j Desktop**: Use the built-in backup/export functionality
+- **Self-hosted**: Use `neo4j-admin dump` command
 
-Aura instances automatically back up each day, but an immediate backup can be created if there is more recent data to record. See xxx for more details.
+### Transfer History & Undo
 
-Local Desktop database instances will need to be shutdown, then a Clone or Dump of the database can be generated through the Desktop app. See xxx for more details.
+- **Session Log**: All transfers are logged in the sidebar
+- **One-click Undo**: Rollback any transfer operation
+- **Error Handling**: Graceful handling of already-removed data
 
-### Undo
+## 🐛 Troubleshooting
 
-The expandable sidebar contains a transfer log of all the transfer executed during a session. By selecting the undo button on any of the listed transfers will wipe the transfered data from the target database. Note it may display an error if data from that transfer has already been removed (by a previous undo or if the `Purge Target Database` option above was used)
+### Common Issues
 
+**Connection Timeout**
+- Verify database URI and credentials
+- Check network connectivity
+- Ensure database is running and accessible
 
-## License
-MIT
+**Transfer Failures**
+- Verify sufficient memory in target database
+- Check for conflicting constraints
+- Review transfer logs for specific errors
+
+**Performance Issues**
+- Reduce batch size for large transfers
+- Ensure adequate system resources
+- Consider transferring in smaller chunks
+
+### Debug Mode
+
+Enable detailed logging by setting the log level in the application:
+```python
+logging.basicConfig(level=logging.DEBUG)
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Please follow these steps:
+
+1. **Fork the repository**
+2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+3. **Make your changes** and add tests
+4. **Commit your changes**: `git commit -m 'Add amazing feature'`
+5. **Push to the branch**: `git push origin feature/amazing-feature`
+6. **Open a Pull Request**
+
+### Development Setup
+
+```bash
+# Install development dependencies
+poetry install --with dev
+
+# Run tests
+poetry run pytest
+
+# Format code
+poetry run black .
+poetry run isort .
+```
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.txt) file for details.
+
+## 🙏 Acknowledgments
+
+- Built with [Streamlit](https://streamlit.io/)
+- Powered by [neo4j-transfer](https://pypi.org/project/neo4j-uploader/)
+- Demo data provided by [Neo4j Labs](https://neo4j.com/labs/)
+
+## 📞 Support
+
+- **Issues**: [GitHub Issues](https://github.com/your-repo/neo4j-transfer-streamlit/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/your-repo/neo4j-transfer-streamlit/discussions)
+- **Documentation**: [Project Wiki](https://github.com/your-repo/neo4j-transfer-streamlit/wiki)

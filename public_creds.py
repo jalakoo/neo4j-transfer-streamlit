@@ -1,9 +1,11 @@
+import os
+
 public_creds = {
     "custom":{
-        "NEO4J_URI":"",
-        "NEO4J_USERNAME":"",
-        "NEO4J_PASSWORD":"",
-        "NEO4J_DATABASE":""
+        "NEO4J_URI": os.environ.get("NEO4J_URI", ""),
+        "NEO4J_USERNAME": os.environ.get("NEO4J_USERNAME", "neo4j"),
+        "NEO4J_PASSWORD": os.environ.get("NEO4J_PASSWORD", ""),
+        "NEO4J_DATABASE": os.environ.get("NEO4J_DATABASE", "neo4j")
     },
     "northwinds": {
         "NEO4J_URI":"neo4j+s://demo.neo4jlabs.com",

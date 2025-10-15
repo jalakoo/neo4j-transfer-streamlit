@@ -58,10 +58,14 @@ def init_session_state():
         SessionKeys.TRANSFER_LOG: [],
         SessionKeys.NODE_LABELS: None,
         SessionKeys.RELATIONSHIP_TYPES: None,
-        SessionKeys.SOURCE_URI: os.environ.get(SessionKeys.SOURCE_URI),
-        SessionKeys.SOURCE_USER: os.environ.get(SessionKeys.SOURCE_USER, "neo4j"),
-        SessionKeys.SOURCE_PASSWORD: os.environ.get(SessionKeys.SOURCE_PASSWORD),
-        SessionKeys.SOURCE_DATABASE: os.environ.get(SessionKeys.SOURCE_DATABASE, "neo4j"),
+        SessionKeys.SOURCE_URI: os.environ.get("NEO4J_URI", ""),
+        SessionKeys.SOURCE_USER: os.environ.get("NEO4J_USERNAME", "neo4j"),
+        SessionKeys.SOURCE_PASSWORD: os.environ.get("NEO4J_PASSWORD", ""),
+        SessionKeys.SOURCE_DATABASE: os.environ.get("NEO4J_DATABASE", "neo4j"),
+        SessionKeys.TARGET_URI: os.environ.get("TARGET_NEO4J_URI", ""),
+        SessionKeys.TARGET_USER: os.environ.get("TARGET_NEO4J_USERNAME", "neo4j"),
+        SessionKeys.TARGET_PASSWORD: os.environ.get("TARGET_NEO4J_PASSWORD", ""),
+        SessionKeys.TARGET_DATABASE: os.environ.get("TARGET_NEO4J_DATABASE", "neo4j"),
         SessionKeys.SHOW_REFRESH_MESSAGE: True,
         SessionKeys.PREVIOUS_NODES: None,
         SessionKeys.PREVIOUS_RELS: None,
@@ -94,9 +98,29 @@ def get_cached_relationship_types(uri: str, username: str, database: str) -> Lis
         return []
 
 # Validation functions
+def validate_uri(uri: str) -> bool:
+    """Validate Neo4j URI format"""
+    if not uri or not uri.strip():
+        return False
+    
+    # Check if URI has a valid scheme
+    valid_schemes = ['bolt', 'bolt+ssc', 'bolt+s', 'neo4j', 'neo4j+ssc', 'neo4j+s']
+    uri_lower = uri.lower().strip()
+    
+    for scheme in valid_schemes:
+        if uri_lower.startswith(f"{scheme}://"):
+            return True
+    
+    return False
+
 def validate_connection(creds: Neo4jCredentials) -> bool:
     """Validate database connection"""
     try:
+        # First validate URI format
+        if not validate_uri(creds.uri):
+            st.error(f"Invalid URI format: '{creds.uri}'. Must start with bolt://, neo4j://, or their secure variants.")
+            return False
+            
         validate_credentials(creds)
         return True
     except Exception as e:
@@ -146,8 +170,8 @@ def render_source_database_section():
         help="Select a public dataset or 'Custom' for your own database"
     )
     
-    if db_type and db_type in public_creds:
-        # Auto-populate from selected public database
+    if db_type and db_type in public_creds and db_type != "custom":
+        # Auto-populate from selected public database (but not for custom)
         creds = public_creds[db_type]
         st.session_state[SessionKeys.SOURCE_URI] = creds[SessionKeys.SOURCE_URI]
         st.session_state[SessionKeys.SOURCE_USER] = creds[SessionKeys.SOURCE_USER]
@@ -160,6 +184,12 @@ def render_source_database_section():
     s_password = st.text_input("Password", st.session_state[SessionKeys.SOURCE_PASSWORD], 
                               key="s_password", type="password")
     s_db = st.text_input("Database", st.session_state[SessionKeys.SOURCE_DATABASE], key="s_db")
+    
+    # Update session state with current input values
+    st.session_state[SessionKeys.SOURCE_URI] = s_uri
+    st.session_state[SessionKeys.SOURCE_USER] = s_user
+    st.session_state[SessionKeys.SOURCE_PASSWORD] = s_password
+    st.session_state[SessionKeys.SOURCE_DATABASE] = s_db
 
     if not validate_required_fields(s_uri, s_password):
         st.info("Enter source database connection details")
@@ -275,19 +305,19 @@ def render_target_database_section(selected_nodes: List[str], selected_rels: Lis
     """Render the target database and transfer section"""
     st.header("Target Neo4j Database")
 
-    # Load default values from environment
-    defaults = {
-        'uri': os.environ.get(SessionKeys.TARGET_URI, ""),
-        'user': os.environ.get(SessionKeys.TARGET_USER, "neo4j"),
-        'password': os.environ.get(SessionKeys.TARGET_PASSWORD, ""),
-        'database': os.environ.get(SessionKeys.TARGET_DATABASE, "neo4j")
-    }
+    # Target session state is already initialized in init_session_state()
 
     # Connection fields
-    t_uri = st.text_input("URI", defaults['uri'], key="t_uri")
-    t_user = st.text_input("Username", defaults['user'], key="t_user")
-    t_password = st.text_input("Password", defaults['password'], key="t_password", type="password")
-    t_db = st.text_input("Database", defaults['database'], key="t_db")
+    t_uri = st.text_input("URI", st.session_state[SessionKeys.TARGET_URI], key="t_uri")
+    t_user = st.text_input("Username", st.session_state[SessionKeys.TARGET_USER], key="t_user")
+    t_password = st.text_input("Password", st.session_state[SessionKeys.TARGET_PASSWORD], key="t_password", type="password")
+    t_db = st.text_input("Database", st.session_state[SessionKeys.TARGET_DATABASE], key="t_db")
+    
+    # Update session state with current input values
+    st.session_state[SessionKeys.TARGET_URI] = t_uri
+    st.session_state[SessionKeys.TARGET_USER] = t_user
+    st.session_state[SessionKeys.TARGET_PASSWORD] = t_password
+    st.session_state[SessionKeys.TARGET_DATABASE] = t_db
 
     if not validate_required_fields(t_uri, t_password):
         st.info("Enter target database connection details")
@@ -297,14 +327,6 @@ def render_target_database_section(selected_nodes: List[str], selected_rels: Lis
     
     if not validate_connection(t_creds):
         return
-    
-    # Persist target creds in session for later actions (e.g., Undo)
-    st.session_state.update({
-        SessionKeys.TARGET_URI: t_uri,
-        SessionKeys.TARGET_USER: t_user,
-        SessionKeys.TARGET_PASSWORD: t_password,
-        SessionKeys.TARGET_DATABASE: t_db
-    })
 
     # Transfer options
     add_metadata = st.checkbox(
@@ -460,19 +482,19 @@ def render_sidebar():
                         # Resolve target credentials from session or environment defaults
                         resolved_t_uri = (
                             st.session_state.get(SessionKeys.TARGET_URI)
-                            or os.environ.get(SessionKeys.TARGET_URI, "")
+                            or os.environ.get("TARGET_NEO4J_URI", "")
                         )
                         resolved_t_user = (
                             st.session_state.get(SessionKeys.TARGET_USER)
-                            or os.environ.get(SessionKeys.TARGET_USER, "neo4j")
+                            or os.environ.get("TARGET_NEO4J_USERNAME", "neo4j")
                         )
                         resolved_t_password = (
                             st.session_state.get(SessionKeys.TARGET_PASSWORD)
-                            or os.environ.get(SessionKeys.TARGET_PASSWORD, "")
+                            or os.environ.get("TARGET_NEO4J_PASSWORD", "")
                         )
                         resolved_t_db = (
                             st.session_state.get(SessionKeys.TARGET_DATABASE)
-                            or os.environ.get(SessionKeys.TARGET_DATABASE, "neo4j")
+                            or os.environ.get("TARGET_NEO4J_DATABASE", "neo4j")
                         )
                         
                         if not resolved_t_uri:
